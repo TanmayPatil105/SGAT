@@ -102,7 +102,7 @@ class GraphAttention(nn.Module):
                 ind = self.g.nodes()
                 self.g.apply_edges(self.loop, edges=(ind, ind))
 
-            self.edge_softmax()
+            # self.edge_softmax()
 
             if self.l0 == 1:
                 self.g.apply_edges(self.norm)
@@ -113,7 +113,7 @@ class GraphAttention(nn.Module):
 
         self.g.edata['a_drop'] = self.attn_drop(self.g.edata['a'])
         self.num = (self.g.edata['a'] > 0).sum()
-        self.g.update_all(fn.src_mul_edge('ft', 'a_drop', 'ft'), fn.sum('ft', 'ft'))
+        self.g.update_all(fn.u_mul_e('ft', 'a_drop', 'ft'), fn.sum('ft', 'ft'))
         ret = self.g.ndata['ft']
 
         # 4. residual
@@ -139,11 +139,10 @@ class GraphAttention(nn.Module):
                 m = l0_test(logits, 0, 1)
             self.loss = get_loss2(logits[:,0,:]).sum()
         return {'a': m}
-
+    
     def norm(self, edges):
-        # normalize attention
-        a = edges.data['a'] / edges.dst['z']
-        return {'a' : a}
+        # FIXME: calculate norm
+        return { 'a': edges.data['a']}
 
     def loop(self, edges):
         # set attention to itself as 1
@@ -153,7 +152,8 @@ class GraphAttention(nn.Module):
         self._logits_name = "_logits"
         self._normalizer_name = "_norm"
         self.g.edata[self._logits_name] = logits
-        self.g.update_all(fn.copy_edge(self._logits_name, self._logits_name),
+
+        self.g.update_all(fn.copy_u(self._logits_name, self._logits_name),
                          fn.sum(self._logits_name, self._normalizer_name))
         return self.g.edata.pop(self._logits_name), self.g.ndata.pop(self._normalizer_name)
 
