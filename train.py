@@ -3,6 +3,7 @@ import time
 from time import localtime
 import torch
 import torch.nn.functional as F
+from dgl import to_networkx
 from dgl import DGLGraph
 from dgl.data import register_data_args, load_data
 from gat import GAT
@@ -12,6 +13,8 @@ from torch.backends import cudnn
 #from reddit import RedditDataset
 # from ms import MsDataset
 import networkx as nx
+import os
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np
 from utils import EarlyStopping
 
@@ -48,15 +51,15 @@ def main(args):
     else:
         data = load_data(args)
 
-    g = data[0]
-    features = torch.FloatTensor(g.ndata['feat'])
-    labels = torch.LongTensor(g.ndata['label'])
-    train_mask = torch.ByteTensor(g.ndata['train_mask'].to(torch.uint8))
-    val_mask = torch.ByteTensor(g.ndata['val_mask'].to(torch.uint8))
-    test_mask = torch.ByteTensor(g.ndata['test_mask'].to(torch.uint8))
+    graph = data[0]
+    features = torch.FloatTensor(graph.ndata['feat'])
+    labels = torch.LongTensor(graph.ndata['label'])
+    train_mask = torch.ByteTensor(graph.ndata['train_mask'].to(torch.uint8))
+    val_mask = torch.ByteTensor(graph.ndata['val_mask'].to(torch.uint8))
+    test_mask = torch.ByteTensor(graph.ndata['test_mask'].to(torch.uint8))
     num_feats = features.shape[1]
-    n_classes = data.num_labels
-    n_edges = g.num_edges()
+    n_classes = data.num_classes
+    n_edges = graph.num_edges()
     current_time = time.strftime('%d_%H:%M:%S', localtime())
     writer = SummaryWriter(log_dir='runs/' + current_time + '_' + args.sess, flush_secs=30)
 
@@ -82,19 +85,20 @@ def main(args):
         val_mask = val_mask.bool().cuda()
         test_mask = test_mask.bool().cuda()
 
-
-    g = data.graph
     # add self loop
+    # FIXME: Add self loop
     if args.dataset != 'reddit':
-        g.remove_edges_from(nx.selfloop_edges(g))
-        g = DGLGraph(g)
-    g.add_edges(g.nodes(), g.nodes())
-    n_edges = g.number_of_edges()
+        nx_graph = to_networkx (graph)
+        self_loop_edges = list (nx.selfloop_edges (nx_graph))
+        graph.remove_edges(torch.tensor (self_loop_edges, dtype=torch.long))
+
+    graph.add_edges(graph.nodes(), graph.nodes())
+    n_edges = graph.number_of_edges()
     print('edge number %d'%(n_edges))
     # create model
     heads = ([args.num_heads] * args.num_layers) + [args.num_out_heads]
 
-    model = GAT(g,
+    model = GAT(graph,
                 args.num_layers,
                 num_feats,
                 args.num_hidden,

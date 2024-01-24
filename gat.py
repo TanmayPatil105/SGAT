@@ -11,6 +11,8 @@ import torch
 import torch.nn as nn
 import dgl.function as fn
 from dgl.nn.pytorch import edge_softmax
+import os
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np
 import torch.nn.functional as F
 
@@ -22,19 +24,44 @@ beta = 0.66
 eps = 1e-20
 const1 = beta*np.log(-gamma/zeta + eps)
 
+# @goal: to introduce a stochastic element to regularization
+#        -> explore differen configurations
+#
+# @docs: Read page no. 5
+#
+# @equation: f (log Alpha, u) = sigma ( (log u - log ( 1 - u) + log alpha) / beta)  * (zeta - gamma) + gamma
+#
+# Hardtanh: clips the value in the given range to mask
+# @min = 0
+# @max = 1
+#
+# Randomness: stochastic, different configurations
+#
 def l0_train(logAlpha, min, max):
     U = torch.rand(logAlpha.size()).type_as(logAlpha) + eps
     s = sig((torch.log(U / (1 - U)) + logAlpha) / beta)
     s_bar = s * (zeta - gamma) + gamma
+
+    # @values : [ 0 - 1]
     mask = F.hardtanh(s_bar, min, max)
     return mask
 
+#
+# @goal: no randomisation here
+#
 def l0_test(logAlpha, min, max):
     s = sig(logAlpha/beta)
     s_bar = s * (zeta - gamma) + gamma
     mask = F.hardtanh(s_bar, min, max)
     return mask
 
+#
+# @docs: Refer page no. 5
+#
+# @equation:  Σ σ (log alpha - const1)
+#
+# @goals: uses sigmoid to range between [0, 1]
+#
 def get_loss2(logAlpha):
     return sig(logAlpha - const1)
 
@@ -62,13 +89,18 @@ class GraphAttention(nn.Module):
             self.attn_drop = nn.Dropout(attn_drop)
         else:
             self.attn_drop = lambda x : x
+
+        # FIXME: API updates
         self.attn_l = nn.Parameter(torch.Tensor(size=(1, 1, out_dim)))
         self.attn_r = nn.Parameter(torch.Tensor(size=(1, 1, out_dim)))
         self.bias_l0 = nn.Parameter(torch.FloatTensor([bias_l0]))
 
+        # Initialise weight tensors
         nn.init.xavier_normal_(self.fc.weight.data, gain=1.414)
         nn.init.xavier_normal_(self.attn_l.data, gain=1.414)
         nn.init.xavier_normal_(self.attn_r.data, gain=1.414)
+
+        # parameters for forward pass
         self.leaky_relu = nn.LeakyReLU(alpha)
         self.softmax = edge_softmax
         self.residual = residual
@@ -91,6 +123,7 @@ class GraphAttention(nn.Module):
         ft = self.fc(h).reshape((h.shape[0], self.num_heads, -1))  # NxHxD'
         a1 = (ft * self.attn_l).sum(dim=-1).unsqueeze(-1) # N x H x 1
         a2 = (ft * self.attn_r).sum(dim=-1).unsqueeze(-1) # N x H x 1
+        self.g=self.g.to("cuda:1");
         self.g.ndata.update({'ft' : ft, 'a1' : a1, 'a2' : a2})
 
         if skip == 0:
@@ -102,7 +135,8 @@ class GraphAttention(nn.Module):
                 ind = self.g.nodes()
                 self.g.apply_edges(self.loop, edges=(ind, ind))
 
-            # self.edge_softmax()
+            # FIXME: please
+            self.edge_softmax()
 
             if self.l0 == 1:
                 self.g.apply_edges(self.norm)
@@ -110,7 +144,7 @@ class GraphAttention(nn.Module):
         # 2. compute the aggregated node features scaled by the dropped,
             edges = self.g.edata['a'].squeeze().nonzero().squeeze()
 
-
+        # FIXME: Remove comments
         self.g.edata['a_drop'] = self.attn_drop(self.g.edata['a'])
         self.num = (self.g.edata['a'] > 0).sum()
         self.g.update_all(fn.u_mul_e('ft', 'a_drop', 'ft'), fn.sum('ft', 'ft'))
@@ -138,6 +172,7 @@ class GraphAttention(nn.Module):
             else:
                 m = l0_test(logits, 0, 1)
             self.loss = get_loss2(logits[:,0,:]).sum()
+
         return {'a': m}
     
     def norm(self, edges):
@@ -154,7 +189,7 @@ class GraphAttention(nn.Module):
         self.g.edata[self._logits_name] = logits
 
         self.g.update_all(fn.copy_u(self._logits_name, self._logits_name),
-                         fn.sum(self._logits_name, self._normalizer_name))
+                          fn.sum(self._logits_name, self._normalizer_name))
         return self.g.edata.pop(self._logits_name), self.g.ndata.pop(self._normalizer_name)
 
     def edge_softmax(self):
@@ -202,7 +237,6 @@ class GAT(nn.Module):
 
 
     def forward(self, inputs):
-
         h = inputs
         edges = "__ALL__"
         h, edges = self.gat_layers[0](h, edges)

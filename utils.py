@@ -1,9 +1,10 @@
-import numpy as np
 import torch
 import pickle as pkl
 import sys
 
 import networkx as nx
+import os
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np
 import scipy.sparse as sp
 
