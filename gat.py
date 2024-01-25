@@ -80,6 +80,7 @@ class GraphAttention(nn.Module):
         super(GraphAttention, self).__init__()
         self.g = g
         self.num_heads = num_heads
+        # fc -> fully connected
         self.fc = nn.Linear(in_dim, num_heads * out_dim, bias=False)
         if feat_drop:
             self.feat_drop = nn.Dropout(feat_drop)
@@ -91,7 +92,9 @@ class GraphAttention(nn.Module):
             self.attn_drop = lambda x : x
 
         # FIXME: API updates
+        # @dimension: 1 * 1 * 64 
         self.attn_l = nn.Parameter(torch.Tensor(size=(1, 1, out_dim)))
+        # @dimension: 1 * 1 * 64 
         self.attn_r = nn.Parameter(torch.Tensor(size=(1, 1, out_dim)))
         self.bias_l0 = nn.Parameter(torch.FloatTensor([bias_l0]))
 
@@ -118,12 +121,31 @@ class GraphAttention(nn.Module):
 
     def forward(self, inputs, edges="__ALL__", skip=0):
         self.loss = 0
-        # prepare
-        h = self.feat_drop(inputs)  # NxD
-        ft = self.fc(h).reshape((h.shape[0], self.num_heads, -1))  # NxHxD'
+        
+        # For cora dataset:
+        #               N -> 2708; D -> 1433; num_head -> 2; num_classes -> 7;
+        # N -> number of nodes
+        # D -> number of features
+        # H -> number of attention heads
+        # @dimension h -> 2708 * 1433
+        #
+        h = self.feat_drop(inputs)  # N x D
+
+        # ft -> reshaped feature matrix with multihead attention
+        # @dimension fc -> 1433 * 128 (2 * 64)  ;
+        #                             (2 * 64) -> num_heads * out_dim
+        #
+        ft = self.fc(h).reshape((h.shape[0], self.num_heads, -1))  # N x H x D'
+        
+        # @result: ft * self.attn_l = [ 2708 * 2 * 64 ]
+        # @dimension: a1 -> 2708 * 2 * 1
+        #
         a1 = (ft * self.attn_l).sum(dim=-1).unsqueeze(-1) # N x H x 1
+        # @result: ft * self.attn_l = [ 2708 * 2 * 64 ]
+        # @dimension: a1 -> 2708 * 2 * 1
+        #
         a2 = (ft * self.attn_r).sum(dim=-1).unsqueeze(-1) # N x H x 1
-        self.g=self.g.to("cuda:1");
+        self.g = self.g.to("cuda:1");
         self.g.ndata.update({'ft' : ft, 'a1' : a1, 'a2' : a2})
 
         if skip == 0:
@@ -144,7 +166,6 @@ class GraphAttention(nn.Module):
         # 2. compute the aggregated node features scaled by the dropped,
             edges = self.g.edata['a'].squeeze().nonzero().squeeze()
 
-        # FIXME: Remove comments
         self.g.edata['a_drop'] = self.attn_drop(self.g.edata['a'])
         self.num = (self.g.edata['a'] > 0).sum()
         self.g.update_all(fn.u_mul_e('ft', 'a_drop', 'ft'), fn.sum('ft', 'ft'))
@@ -242,6 +263,7 @@ class GAT(nn.Module):
         h, edges = self.gat_layers[0](h, edges)
         h = self.activation(h.flatten(1))
         for l in range(1, self.num_layers):
+            # This line calls forward method of the GraphAttention object
             h, _= self.gat_layers[l](h, edges, skip=1)
             h = self.activation(h.flatten(1))
 

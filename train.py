@@ -128,7 +128,7 @@ def main(args):
         if epoch >= 3:
             t0 = time.time()
 
-        # forward
+        # This line calls the forward method of the GAT object
         logits = model(features)
         loss = loss_fcn(logits[train_mask], labels[train_mask])
 
