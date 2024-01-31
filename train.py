@@ -74,7 +74,7 @@ def main(args):
            val_mask.sum().item(),
            test_mask.sum().item()))
 
-    if args.gpu < 0:
+    if args.gpu <= 0:
         cuda = False
     else:
         cuda = True
