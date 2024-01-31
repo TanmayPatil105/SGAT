@@ -54,9 +54,9 @@ def main(args):
     graph = data[0]
     features = torch.FloatTensor(graph.ndata['feat'])
     labels = torch.LongTensor(graph.ndata['label'])
-    train_mask = torch.ByteTensor(graph.ndata['train_mask'].to(torch.bool))
-    val_mask = torch.ByteTensor(graph.ndata['val_mask'].to(torch.bool))
-    test_mask = torch.ByteTensor(graph.ndata['test_mask'].to(torch.bool))
+    train_mask = torch.ByteTensor(graph.ndata['train_mask'].to(torch.uint8))
+    val_mask = torch.ByteTensor(graph.ndata['val_mask'].to(torch.uint8))
+    test_mask = torch.ByteTensor(graph.ndata['test_mask'].to(torch.uint8))
     num_feats = features.shape[1]
     n_classes = data.num_classes
     n_edges = graph.num_edges()

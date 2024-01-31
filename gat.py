@@ -210,7 +210,7 @@ class GraphAttention(nn.Module):
         self._normalizer_name = "_norm"
         self.g.edata[self._logits_name] = logits
 
-        self.g.update_all(fn.copy_u(self._logits_name, self._logits_name),
+        self.g.update_all(fn.copy_e(self._logits_name, self._logits_name),
                           fn.sum(self._logits_name, self._normalizer_name))
         return self.g.edata.pop(self._logits_name), self.g.ndata.pop(self._normalizer_name)
 
