@@ -197,8 +197,9 @@ class GraphAttention(nn.Module):
         return {'a': m}
     
     def norm(self, edges):
-        # FIXME: calculate norm
-        return { 'a': edges.data['a']}
+        # normalize attention
+        a = edges.data['a'] / edges.dst['z']
+        return {'a' : a}
 
     def loop(self, edges):
         # set attention to itself as 1
