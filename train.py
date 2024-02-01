@@ -3,7 +3,7 @@ import time
 from time import localtime
 import torch
 import torch.nn.functional as F
-from dgl import to_networkx
+from dgl import to_networkx, from_networkx
 from dgl import DGLGraph
 from dgl.data import register_data_args, load_data
 from gat import GAT
@@ -89,8 +89,9 @@ def main(args):
     # FIXME: Add self loop
     if args.dataset != 'reddit':
         nx_graph = to_networkx (graph)
-        self_loop_edges = list (nx.selfloop_edges (nx_graph))
-        graph.remove_edges(torch.tensor (self_loop_edges, dtype=torch.long))
+        self_loop_edges = nx.selfloop_edges (nx_graph)
+        nx_graph.remove_edges_from (self_loop_edges)
+        graph = from_networkx (nx_graph)
 
     graph.add_edges(graph.nodes(), graph.nodes())
     n_edges = graph.number_of_edges()
