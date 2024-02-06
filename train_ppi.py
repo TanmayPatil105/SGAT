@@ -1,5 +1,3 @@
-
-
 import numpy as np
 import torch
 import dgl
@@ -8,7 +6,7 @@ import torch.nn.functional as F
 import argparse
 from sklearn.metrics import f1_score
 from gat import GAT
-from dgl.data.ppi import LegacyPPIDataset
+from dgl.data.ppi import PPIDataset
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import random
@@ -57,14 +55,14 @@ def main(args):
     # define loss function
     loss_fcn = torch.nn.BCEWithLogitsLoss()
     # create the dataset
-    train_dataset = LegacyPPIDataset(mode='train')
-    valid_dataset = LegacyPPIDataset(mode='valid')
-    test_dataset = LegacyPPIDataset(mode='test')
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate)
-    valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate)
-    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=collate)
-    n_classes = train_dataset.labels.shape[1]
-    num_feats = train_dataset.features.shape[1]
+    train_dataset = PPIDataset(mode='train')
+    valid_dataset = PPIDataset(mode='valid')
+    test_dataset = PPIDataset(mode='test')
+    # train_dataloader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate)
+    # valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate)
+    # test_dataloader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=collate)
+    n_classes = train_dataset.num_classes
+    num_feats = train_dataset[0].ndata['feat'].shape[1]
     g = train_dataset.graph
     heads = ([args.num_heads] * args.num_layers) + [args.num_out_heads]
 
@@ -94,8 +92,27 @@ def main(args):
         if epoch % 5 == 0:
             t0 = time.time()
         loss_list = []
+        """
         for batch, data in enumerate(train_dataloader):
             subgraph, feats, labels = data
+            feats = feats.to(device)
+            labels = labels.to(device)
+            model.g = subgraph
+            for layer in model.gat_layers:
+                layer.g = subgraph
+            logits = model(feats.float())
+            loss = loss_fcn(logits, labels.float())
+            loss_l0 = args.loss_l0 *(model.gat_layers[0].loss)
+            optimizer.zero_grad()
+            (loss+loss_l0).backward()
+            optimizer.step()
+            loss_list.append(loss.item())
+            num += model.gat_layers[0].num
+        """
+        
+        for subgraph in train_dataset:
+            feats = subgraph.ndata['feat']
+            labels = subgraph.ndata['label']
             feats = feats.to(device)
             labels = labels.to(device)
             model.g = subgraph
@@ -120,8 +137,19 @@ def main(args):
         if epoch%5 == 0:
             score_list = []
             val_loss_list = []
+            """
             for batch, valid_data in enumerate(valid_dataloader):
                 subgraph, feats, labels = valid_data
+                feats = feats.to(device)
+                labels = labels.to(device)
+                score, val_loss = evaluate(feats.float(), model, subgraph, labels.float(), loss_fcn)
+                score_list.append(score)
+                val_loss_list.append(val_loss)
+            """
+            
+            for subgraph in valid_dataset:
+                feats = subgraph.ndata['feat']
+                labels = subgraph.ndata['label']
                 feats = feats.to(device)
                 labels = labels.to(device)
                 score, val_loss = evaluate(feats.float(), model, subgraph, labels.float(), loss_fcn)
@@ -154,11 +182,20 @@ def main(args):
 
 
     test_score_list = []
+    """
     for batch, test_data in enumerate(test_dataloader):
         subgraph, feats, labels = test_data
         feats = feats.to(device)
         labels = labels.to(device)
         test_score_list.append(evaluate(feats, model, subgraph, labels.float(), loss_fcn)[0])
+    """
+    for subgraph in test_dataset:
+        feats = subgraph.ndata['feat']
+        labels = subgraph.ndata['label']
+        feats = feats.to(device)
+        labels = labels.to(device)
+        test_score_list.append(evaluate(feats, model, subgraph, labels.float(), loss_fcn)[0])
+
     acc = np.array(test_score_list).mean()
     print("test F1-Score: {:.4f}".format(acc))
     writer.close()
