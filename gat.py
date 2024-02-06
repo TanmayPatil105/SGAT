@@ -91,7 +91,6 @@ class GraphAttention(nn.Module):
         else:
             self.attn_drop = lambda x : x
 
-        # FIXME: API updates
         # @dimension: 1 * 1 * 64 
         self.attn_l = nn.Parameter(torch.Tensor(size=(1, 1, out_dim)))
         # @dimension: 1 * 1 * 64 
@@ -119,7 +118,7 @@ class GraphAttention(nn.Module):
             else:
                 self.res_fc = None
 
-    def forward(self, inputs, edges="__ALL__", skip=0):
+    def forward(self, graph, inputs, edges="__ALL__", skip=0):
         self.loss = 0
         
         # For cora dataset:
@@ -145,6 +144,8 @@ class GraphAttention(nn.Module):
         # @dimension: a1 -> 2708 * 2 * 1
         #
         a2 = (ft * self.attn_r).sum(dim=-1).unsqueeze(-1) # N x H x 1
+
+        self.g = graph
         self.g = self.g.to("cuda:1");
         self.g.ndata.update({'ft' : ft, 'a1' : a1, 'a2' : a2})
 
@@ -157,7 +158,7 @@ class GraphAttention(nn.Module):
                 ind = self.g.nodes()
                 self.g.apply_edges(self.loop, edges=(ind, ind))
 
-            # FIXME: please
+            # compute softmax
             self.edge_softmax()
 
             if self.l0 == 1:
@@ -178,7 +179,7 @@ class GraphAttention(nn.Module):
             else:
                 resval = torch.unsqueeze(h, 1)  # Nx1xD'
             ret = resval + ret
-        return ret, edges
+        return self.g, ret, edges
 
     def edge_attention(self, edges):
         # an edge UDF to compute unnormalized attention values from src and dst
@@ -261,14 +262,15 @@ class GAT(nn.Module):
     def forward(self, inputs):
         h = inputs
         edges = "__ALL__"
-        h, edges = self.gat_layers[0](h, edges)
+        graph = self.g
+        graph, h, edges = self.gat_layers[0](graph, h, edges)
         h = self.activation(h.flatten(1))
         for l in range(1, self.num_layers):
             # This line calls forward method of the GraphAttention object
-            h, _= self.gat_layers[l](h, edges, skip=1)
+            graph, h, _ = self.gat_layers[l](graph, h, edges, skip=1)
             h = self.activation(h.flatten(1))
 
         # output projection
-        logits,_ = self.gat_layers[-1](h, edges, skip=1)
+        graph, logits, _ = self.gat_layers[-1](graph, h, edges, skip=1)
         logits = logits.mean(1)
         return logits
