@@ -5,6 +5,7 @@ import sys
 import networkx as nx
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
+import csv
 import numpy as np
 import scipy.sparse as sp
 
@@ -34,3 +35,28 @@ class EarlyStopping:
     def save_checkpoint(self, model):
         '''Saves model when validation loss decrease.'''
         torch.save(model.state_dict(), 'es_checkpoint.pt')
+
+class SaveToCSV:
+    def __init__(self, file_name, ppi=False):
+        self.file_name = file_name
+
+        if ppi == True:
+            row = ['Epoch', 'F1_score']
+        else:
+            row = ['Epoch', 'Train_accuracy', 'Valid_accuracy']
+
+        with open (self.file_name, 'a') as f:
+            writer = csv.writer(f)
+            writer.writerow(row)
+
+    def add_ppi_row(self, epoch, f1_score):
+        row = [epoch, f'{f1_score:.4f}']
+        with open (self.file_name, 'a') as f:
+            writer = csv.writer(f)
+            writer.writerow(row)
+
+    def add_row(self, epoch, train_acc, valid_acc):
+        row = [epoch, f'{train_acc:.4f}', f'{valid_acc:.4f}']
+        with open (self.file_name, 'a') as f:
+            writer = csv.writer(f)
+            writer.writerow(row)
