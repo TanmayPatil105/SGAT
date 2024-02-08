@@ -19,6 +19,10 @@ import numpy as np
 from utils import EarlyStopping
 
 
+green = "\033[92;1m"
+reset = "\033[0m"
+magenta = "\033[1;35m"
+
 def accuracy(logits, labels):
     _, indices = torch.max(logits, dim=1)
     correct = torch.sum(indices == labels)
@@ -42,6 +46,27 @@ def set_seeds(seed):
         cudnn.benchmark = False
         cudnn.deterministic = True
 
+def print_graph (dataset, graph):
+
+    n_edges = graph.num_edges()
+    n_nodes = graph.num_nodes()
+
+    print(green + f"""{{
+    "Dataset": "{dataset}",
+    {{
+        "edges": {n_edges},
+        "nodes": {n_nodes},
+    }}
+}}""" + reset)
+
+#
+# FIXME: move print statements to utils
+#
+def print_model (model):
+    print (magenta)
+    print (model)
+    print (reset)
+
 def main(args):
     # load and preprocess dataset
     if args.dataset == 'reddit':
@@ -63,18 +88,19 @@ def main(args):
     current_time = time.strftime('%d_%H:%M:%S', localtime())
     writer = SummaryWriter(log_dir='runs/' + current_time + '_' + args.sess, flush_secs=30)
 
-    print("""----Data statistics------'
-      #Edges %d
-      #Classes %d
-      #Train samples %d
-      #Val samples %d
-      #Test samples %d""" %
-          (n_edges, n_classes,
-           train_mask.sum().item(),
-           val_mask.sum().item(),
-           test_mask.sum().item()))
+    print(green + f"""{{
+    "Dataset": "{args.dataset}",
+    {{
+        "edges": {n_edges},
+        "classes": {n_classes},
+        "train_samples": {train_mask.sum().item()},
+        "valid_samples": {val_mask.sum().item()},
+        "test_samples": {test_mask.sum().item()},
+    }}
+}}
+""" + reset)
 
-    if args.gpu <= 0:
+    if args.gpu < 0:
         cuda = False
     else:
         cuda = True
@@ -85,7 +111,11 @@ def main(args):
         val_mask = val_mask.bool().cuda()
         test_mask = test_mask.bool().cuda()
 
-    # add self loop
+    #
+    # Add self-loop:
+    #   Step 1: We remove all self loop edges
+    #   Step 2: We add self-loop to every edge
+    #
     if args.dataset != 'reddit':
         nx_graph = to_networkx (graph)
         self_loop_edges = nx.selfloop_edges (nx_graph)
@@ -93,8 +123,10 @@ def main(args):
         graph = from_networkx (nx_graph)
 
     graph.add_edges(graph.nodes(), graph.nodes())
-    n_edges = graph.number_of_edges()
-    print('edge number %d'%(n_edges))
+
+    # DEBUG
+    print_graph (args.dataset, graph)
+
     # create model
     heads = ([args.num_heads] * args.num_layers) + [args.num_out_heads]
 
@@ -110,11 +142,14 @@ def main(args):
                 args.alpha,
                 args.bias,
                 args.residual, args.l0)
-    print(model)
+
+    print_model (model)
+
     if args.early_stop:
         stopper = EarlyStopping(patience=150)
     if cuda:
         model.cuda()
+
     loss_fcn = torch.nn.CrossEntropyLoss()
 
     # use optimizer
@@ -164,7 +199,6 @@ def main(args):
         model.load_state_dict(torch.load('es_checkpoint.pt'))
     acc, _ = evaluate(model,features, labels, test_mask, loss_fcn)
     print("Test Accuracy {:.4f}".format(acc))
-
 
 if __name__ == '__main__':
 
