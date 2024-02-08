@@ -86,7 +86,6 @@ def main(args):
         test_mask = test_mask.bool().cuda()
 
     # add self loop
-    # FIXME: Add self loop
     if args.dataset != 'reddit':
         nx_graph = to_networkx (graph)
         self_loop_edges = nx.selfloop_edges (nx_graph)
