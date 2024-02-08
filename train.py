@@ -10,8 +10,6 @@ from gat import GAT
 from torch.utils.tensorboard import SummaryWriter
 import random
 from torch.backends import cudnn
-#from reddit import RedditDataset
-# from ms import MsDataset
 import networkx as nx
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
@@ -68,13 +66,9 @@ def print_model (model):
     print (reset)
 
 def main(args):
-    # load and preprocess dataset
-    if args.dataset == 'reddit':
-        data = RedditDataset()
-    elif args.dataset in ['photo', "computer"]:
-        data = MsDataset(args)
-    else:
-        data = load_data(args)
+
+    # @datasets: cora, citesser, pubmed
+    data = load_data(args)
 
     graph = data[0]
     features = torch.FloatTensor(graph.ndata['feat'])
@@ -116,12 +110,10 @@ def main(args):
     #   Step 1: We remove all self loop edges
     #   Step 2: We add self-loop to every edge
     #
-    if args.dataset != 'reddit':
-        nx_graph = to_networkx (graph)
-        self_loop_edges = nx.selfloop_edges (nx_graph)
-        nx_graph.remove_edges_from (self_loop_edges)
-        graph = from_networkx (nx_graph)
-
+    nx_graph = to_networkx (graph)
+    self_loop_edges = nx.selfloop_edges (nx_graph)
+    nx_graph.remove_edges_from (self_loop_edges)
+    graph = from_networkx (nx_graph)
     graph.add_edges(graph.nodes(), graph.nodes())
 
     # DEBUG
