@@ -76,7 +76,8 @@ class GraphAttention(nn.Module):
                  attn_drop,
                  alpha,
                  bias_l0,
-                 residual=False,l0=0, min=0):
+                 residual=False,l0=0, min=0,
+                 gpu=-1):
         super(GraphAttention, self).__init__()
         self.g = g
         self.num_heads = num_heads
@@ -118,6 +119,8 @@ class GraphAttention(nn.Module):
             else:
                 self.res_fc = None
 
+        self.gpu = gpu
+
     def forward(self, graph, inputs, edges="__ALL__", skip=0):
         self.loss = 0
         
@@ -146,7 +149,9 @@ class GraphAttention(nn.Module):
         a2 = (ft * self.attn_r).sum(dim=-1).unsqueeze(-1) # N x H x 1
 
         self.g = graph
-        self.g = self.g.to("cuda:1");
+        if self.gpu >= 0:
+            self.g = self.g.to("cuda:" + str (self.gpu))
+
         self.g.ndata.update({'ft' : ft, 'a1' : a1, 'a2' : a2})
 
         if skip == 0:
@@ -238,7 +243,8 @@ class GAT(nn.Module):
                  attn_drop,
                  alpha,
                  bias_l0,
-                 residual, l0=0):
+                 residual, l0=0,
+                 gpu=-1):
         super(GAT, self).__init__()
         self.g = g
         self.num_layers = num_layers
@@ -246,17 +252,17 @@ class GAT(nn.Module):
         self.activation = activation
         # input projection (no residual)
         self.gat_layers.append(GraphAttention(
-            g, in_dim, num_hidden, heads[0], feat_drop, attn_drop, alpha,bias_l0, False, l0=l0, min=0))
+            g, in_dim, num_hidden, heads[0], feat_drop, attn_drop, alpha,bias_l0, False, l0=l0, min=0, gpu=gpu))
         # hidden layers
         for l in range(1, num_layers):
             # due to multi-head, the in_dim = num_hidden * num_heads
             self.gat_layers.append(GraphAttention(
                 g, num_hidden * heads[l-1], num_hidden, heads[l],
-                feat_drop, attn_drop, alpha,bias_l0, residual, l0=l0, min=0))
+                feat_drop, attn_drop, alpha,bias_l0, residual, l0=l0, min=0, gpu=gpu))
         # output projection
         self.gat_layers.append(GraphAttention(
             g, num_hidden * heads[-2], num_classes, heads[-1],
-            feat_drop, attn_drop, alpha,bias_l0, residual, l0=l0))
+            feat_drop, attn_drop, alpha,bias_l0, residual, l0=l0, gpu=gpu))
 
 
     def forward(self, inputs):

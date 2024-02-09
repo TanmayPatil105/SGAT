@@ -12,6 +12,11 @@ from torch.utils.tensorboard import SummaryWriter
 import random
 from torch.backends import cudnn
 
+# redundant
+green = "\033[92;1m"
+reset = "\033[0m"
+magenta = "\033[1;35m"
+
 def set_seeds(seed):
     random.seed(seed)
     np.random.seed(seed)
@@ -40,7 +45,13 @@ def evaluate(feats, model, subgraph, labels, loss_fcn):
         score = f1_score(labels.data.cpu().numpy(),
                          predict, average='micro')
         return score, loss_data.item()
-        
+
+# redundant
+def print_model (model):
+    print (magenta)
+    print (model)
+    print (reset)
+
 def main(args):
     if args.gpu<0:
         device = torch.device("cpu")
@@ -78,8 +89,11 @@ def main(args):
                 args.attn_drop,
                 args.alpha,
                 args.bias,
-                args.residual, args.l0)
-    print(model)
+                args.residual, args.l0,
+                args.gpu)
+
+    print_model (model)
+
     # define the optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     model = model.to(device)

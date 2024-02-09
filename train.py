@@ -133,7 +133,8 @@ def main(args):
                 args.adrop,
                 args.alpha,
                 args.bias,
-                args.residual, args.l0)
+                args.residual, args.l0,
+                args.gpu)
 
     print_model (model)
 
