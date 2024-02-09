@@ -79,10 +79,13 @@ class GraphAttention(nn.Module):
                  residual=False,l0=0, min=0,
                  gpu=-1):
         super(GraphAttention, self).__init__()
+
         self.g = g
         self.num_heads = num_heads
+
         # fc -> fully connected
         self.fc = nn.Linear(in_dim, num_heads * out_dim, bias=False)
+
         if feat_drop:
             self.feat_drop = nn.Dropout(feat_drop)
         else:
@@ -123,29 +126,34 @@ class GraphAttention(nn.Module):
 
     def forward(self, graph, inputs, edges="__ALL__", skip=0):
         self.loss = 0
-        
-        # For cora dataset:
-        #               N -> 2708; D -> 1433; num_head -> 2; num_classes -> 7;
-        # N -> number of nodes
-        # D -> number of features
-        # H -> number of attention heads
-        # @dimension h -> 2708 * 1433
-        #
+
+        """
+            For cora dataset:
+            N -> 2708; D -> 1433; num_head -> 2; num_classes -> 7;
+            N -> number of nodes
+            D -> number of features
+            H -> number of attention heads
+            @dimension h -> 2708 * 1433
+        """
         h = self.feat_drop(inputs)  # N x D
 
-        # ft -> reshaped feature matrix with multihead attention
-        # @dimension fc -> 1433 * 128 (2 * 64)  ;
-        #                             (2 * 64) -> num_heads * out_dim
-        #
+        """
+            ft -> reshaped feature matrix with multihead attention
+            @dimension fc -> 1433 * 128 (2 * 64);
+                                        (2 * 64) -> num_heads * out_dim
+        """
         ft = self.fc(h).reshape((h.shape[0], self.num_heads, -1))  # N x H x D'
         
-        # @result: ft * self.attn_l = [ 2708 * 2 * 64 ]
-        # @dimension: a1 -> 2708 * 2 * 1
-        #
+        """
+            @result: ft * self.attn_l = [ 2708 * 2 * 64 ]
+            @dimension: a1 -> 2708 * 2 * 1
+        """
         a1 = (ft * self.attn_l).sum(dim=-1).unsqueeze(-1) # N x H x 1
-        # @result: ft * self.attn_l = [ 2708 * 2 * 64 ]
-        # @dimension: a1 -> 2708 * 2 * 1
-        #
+
+        """
+            @result: ft * self.attn_l = [ 2708 * 2 * 64 ]
+            @dimension: a1 -> 2708 * 2 * 1
+        """
         a2 = (ft * self.attn_r).sum(dim=-1).unsqueeze(-1) # N x H x 1
 
         self.g = graph
@@ -169,7 +177,7 @@ class GraphAttention(nn.Module):
             if self.l0 == 1:
                 self.g.apply_edges(self.norm)
 
-        # 2. compute the aggregated node features scaled by the dropped,
+            # 2. compute the aggregated node features scaled by the dropped,
             edges = self.g.edata['a'].squeeze().nonzero().squeeze()
 
         self.g.edata['a_drop'] = self.attn_drop(self.g.edata['a'])
@@ -184,6 +192,7 @@ class GraphAttention(nn.Module):
             else:
                 resval = torch.unsqueeze(h, 1)  # Nx1xD'
             ret = resval + ret
+
         return self.g, ret, edges
 
     def edge_attention(self, edges):
@@ -218,6 +227,7 @@ class GraphAttention(nn.Module):
 
         self.g.update_all(fn.copy_e(self._logits_name, self._logits_name),
                           fn.sum(self._logits_name, self._normalizer_name))
+
         return self.g.edata.pop(self._logits_name), self.g.ndata.pop(self._normalizer_name)
 
     def edge_softmax(self):
@@ -246,31 +256,40 @@ class GAT(nn.Module):
                  residual, l0=0,
                  gpu=-1):
         super(GAT, self).__init__()
+
         self.g = g
         self.num_layers = num_layers
         self.gat_layers = nn.ModuleList()
         self.activation = activation
+
         # input projection (no residual)
         self.gat_layers.append(GraphAttention(
-            g, in_dim, num_hidden, heads[0], feat_drop, attn_drop, alpha,bias_l0, False, l0=l0, min=0, gpu=gpu))
+            g, in_dim, num_hidden, heads[0],
+            feat_drop, attn_drop, alpha,bias_l0, False, l0=l0, min=0, gpu=gpu)
+        )
+
         # hidden layers
         for l in range(1, num_layers):
             # due to multi-head, the in_dim = num_hidden * num_heads
             self.gat_layers.append(GraphAttention(
                 g, num_hidden * heads[l-1], num_hidden, heads[l],
-                feat_drop, attn_drop, alpha,bias_l0, residual, l0=l0, min=0, gpu=gpu))
+                feat_drop, attn_drop, alpha,bias_l0, residual, l0=l0, min=0, gpu=gpu)
+            )
+
         # output projection
         self.gat_layers.append(GraphAttention(
             g, num_hidden * heads[-2], num_classes, heads[-1],
-            feat_drop, attn_drop, alpha,bias_l0, residual, l0=l0, gpu=gpu))
-
+            feat_drop, attn_drop, alpha,bias_l0, residual, l0=l0, gpu=gpu)
+        )
 
     def forward(self, inputs):
         h = inputs
         edges = "__ALL__"
         graph = self.g
+
         graph, h, edges = self.gat_layers[0](graph, h, edges)
         h = self.activation(h.flatten(1))
+
         for l in range(1, self.num_layers):
             # This line calls forward method of the GraphAttention object
             graph, h, _ = self.gat_layers[l](graph, h, edges, skip=1)
@@ -279,4 +298,5 @@ class GAT(nn.Module):
         # output projection
         graph, logits, _ = self.gat_layers[-1](graph, h, edges, skip=1)
         logits = logits.mean(1)
+
         return logits
