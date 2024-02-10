@@ -1,1 +1,22 @@
 Work in Progress!
+
+Datasets:
+
+- Cora
+		classes:
+			1. Case based
+			2. Genetic Algorithms
+			3. Neural Networks
+			4. Probabilistic Methods
+			5. Reinforcement Learning
+			6. Rule Learning
+			7. Theory
+
+- Citeseer
+		classes:
+			1. Agents
+			2. Artificial Intelligence
+			3. Database
+			4. Human Computer Interaction
+			5. Machine Learning
+			6. Information Retrieval
