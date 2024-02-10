@@ -14,7 +14,7 @@ import networkx as nx
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np
-from utils import EarlyStopping
+from utils import EarlyStopping, debug
 
 
 green = "\033[92;1m"
@@ -233,8 +233,14 @@ if __name__ == '__main__':
     parser.add_argument("--syn_type", type=str, default='scipy', help="reddit")
     parser.add_argument("--self-loop", action='store_true', help="graph self-loop (default=False)")
     parser.add_argument('--sess', default='default', type=str, help='session id')
+    parser.add_argument('--debug', action="store_true", default=False,
+                        help="set debug option")
     parser.set_defaults(self_loop=False)
     args = parser.parse_args()
+
+    if args.debug == True:
+        debug()
+
     print(args)
     set_seeds(args.seed)
     main(args)

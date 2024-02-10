@@ -282,6 +282,10 @@ class GAT(nn.Module):
             feat_drop, attn_drop, alpha,bias_l0, residual, l0=l0, gpu=gpu)
         )
 
+    """
+    @input:
+        inputs => features
+    """
     def forward(self, inputs):
         h = inputs
         edges = "__ALL__"

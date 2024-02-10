@@ -11,6 +11,9 @@ import scipy.sparse as sp
 import pandas as pd
 from matplotlib import pyplot as plt
 
+def debug():
+    torch.set_printoptions(profile="full")
+
 class EarlyStopping:
     def __init__(self, patience=10):
         self.patience = patience
