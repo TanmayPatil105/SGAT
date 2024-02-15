@@ -20,3 +20,9 @@ Datasets:
 			4. Human Computer Interaction
 			5. Machine Learning
 			6. Information Retrieval
+
+- Pubmed
+		classes:
+			1. Diabetes Mellitus Experimental
+			2. Diabetes Mellitus Type 1
+			3. Diabetes Mellitus Type 2
