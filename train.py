@@ -3,7 +3,7 @@ import time
 from time import localtime
 import torch
 import torch.nn.functional as F
-from dgl import to_networkx, from_networkx
+from dgl import remove_self_loop, add_self_loop
 from dgl import DGLGraph
 from dgl.data import register_data_args, load_data
 from gat import GAT
@@ -86,6 +86,7 @@ def main(args):
     "Dataset": "{args.dataset}",
     {{
         "edges": {n_edges},
+        "nodes": {graph.num_nodes()},
         "classes": {n_classes},
         "train_samples": {train_mask.sum().item()},
         "valid_samples": {val_mask.sum().item()},
@@ -105,16 +106,9 @@ def main(args):
         val_mask = val_mask.bool().cuda()
         test_mask = test_mask.bool().cuda()
 
-    #
     # Add self-loop:
-    #   Step 1: We remove all self loop edges
-    #   Step 2: We add self-loop to every edge
-    #
-    nx_graph = to_networkx (graph)
-    self_loop_edges = nx.selfloop_edges (nx_graph)
-    nx_graph.remove_edges_from (self_loop_edges)
-    graph = from_networkx (nx_graph)
-    graph.add_edges(graph.nodes(), graph.nodes())
+    graph = remove_self_loop(graph)
+    graph = add_self_loop(graph)
 
     # DEBUG
     print_graph (args.dataset, graph)
