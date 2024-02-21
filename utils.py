@@ -94,3 +94,22 @@ class LineGraph:
         # On Jypter notebook
         # plt.legend()
         # plt.show()
+
+def create_masks(size, percentages):
+    """
+    Splits dataset into three parts:
+        - Train mask
+        - Validation mask
+        - Test mask
+    """
+    masks = []
+    start = 0
+
+    for percent in percentages:
+        end = start + int(size * percent)
+        tensor = torch.zeros(size)
+        tensor[start:end] = 1
+        masks.append(tensor)
+        start = end
+
+    return masks[0], masks[1], masks[2]
